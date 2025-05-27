@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Calendar App</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      background: #f4f4f4;
+    }
+    .calendar-container {
+      width: 90%;
+      max-width: 900px;
+      margin: 50px auto;
+      background: #fff;
+      border-radius: 10px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+      overflow: hidden;
+    }
+    .calendar-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 20px;
+      background: #007bff;
+      color: white;
+    }
+    .calendar-header button {
+      background: white;
+      border: none;
+      padding: 10px;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    .calendar-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 1px;
+      background: #ddd;
+    }
+    .calendar-day, .calendar-cell {
+      padding: 10px;
+      text-align: center;
+      background: white;
+    }
+    .calendar-day {
+      background: #f0f0f0;
+      font-weight: bold;
+    }
+    .calendar-cell.today {
+      background: #cce5ff;
+    }
+    .event {
+      margin-top: 5px;
+      font-size: 12px;
+      padding: 2px;
+      border-radius: 3px;
+      background-color: #ffc107;
+      color: #333;
+      position: relative;
+    }
+    .event.conflict {
+      background-color: #dc3545;
+      color: white;
+    }
+    .delete-btn {
+      position: absolute;
+      top: 0;
+      right: 2px;
+      border: none;
+      background: transparent;
+      color: red;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    .add-event-btn {
+      margin: 20px;
+      text-align: center;
+    }
+    .add-event-form {
+      display: none;
+      background: white;
+      padding: 20px;
+      border-radius: 10px;
+      max-width: 400px;
+      margin: 0 auto;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+    .add-event-form input, .add-event-form button {
+      display: block;
+      width: 100%;
+      padding: 10px;
+      margin: 10px 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="calendar-container">
+    <div class="calendar-header">
+      <button onclick="prevMonth()">&lt;</button>
+      <h2 id="monthYear"></h2>
+      <button onclick="nextMonth()">&gt;</button>
+    </div>
+    <div class="calendar-grid" id="calendar"></div>
+  </div>
+
+  <div class="add-event-btn">
+    <button onclick="toggleForm()">Add Event</button>
+  </div>
+
+  <form class="add-event-form" id="eventForm" onsubmit="event.preventDefault(); addEvent();">
+    <input type="text" id="eventTitle" placeholder="Event Title" required>
+    <input type="date" id="eventDate" required>
+    <input type="time" id="eventTime" required>
+    <input type="text" id="eventDuration" placeholder="Duration (e.g., 1h)">
+    <button type="submit">Save Event</button>
+  </form>
+
+  <script>
+    const calendar = document.getElementById('calendar');
+    const monthYear = document.getElementById('monthYear');
+    const eventForm = document.getElementById('eventForm');
+    let date = new Date();
+    let events = JSON.parse(localStorage.getItem('events')) || [
+      { title: "Meeting", date: "2025-05-27", time: "10:00", duration: "1h" },
+      { title: "Doctor", date: "2025-05-27", time: "12:00", duration: "1h" },
+      { title: "Gym", date: "2025-05-28", time: "18:00", duration: "1h" }
+    ];
+
+    function saveEvents() {
+      localStorage.setItem('events', JSON.stringify(events));
+    }
+
+    function loadCalendar() {
+      calendar.innerHTML = '';
+      const year = date.getFullYear();
+      const month = date.getMonth();
+      const firstDay = new Date(year, month, 1).getDay();
+      const lastDate = new Date(year, month + 1, 0).getDate();
+      monthYear.textContent = date.toLocaleString('default', { month: 'long', year: 'numeric' });
+
+      const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      for (let day of daysOfWeek) {
+        const dayCell = document.createElement('div');
+        dayCell.className = 'calendar-day';
+        dayCell.textContent = day;
+        calendar.appendChild(dayCell);
+      }
+
+      for (let i = 0; i < firstDay; i++) {
+        calendar.appendChild(document.createElement('div'));
+      }
+
+      for (let d = 1; d <= lastDate; d++) {
+        const cell = document.createElement('div');
+        const thisDate = new Date(year, month, d);
+        const dateStr = thisDate.toISOString().split('T')[0];
+        cell.className = 'calendar-cell';
+
+        if (new Date().toDateString() === thisDate.toDateString()) {
+          cell.classList.add('today');
+        }
+
+        cell.innerHTML = `<strong>${d}</strong>`;
+        const dayEvents = events.filter(e => e.date === dateStr);
+
+        for (let i = 0; i < dayEvents.length; i++) {
+          const e = dayEvents[i];
+          const eventDiv = document.createElement('div');
+          eventDiv.className = 'event';
+          if (dayEvents.length > 1) eventDiv.classList.add('conflict');
+          eventDiv.innerHTML = `${e.title} (${e.time}) <button class='delete-btn' onclick='deleteEvent("${e.title}", "${e.date}", "${e.time}")'>×</button>`;
+          cell.appendChild(eventDiv);
+        }
+
+        calendar.appendChild(cell);
+      }
+    }
+
+    function deleteEvent(title, date, time) {
+      events = events.filter(e => !(e.title === title && e.date === date && e.time === time));
+      saveEvents();
+      loadCalendar();
+    }
+
+    function prevMonth() {
+      date.setMonth(date.getMonth() - 1);
+      loadCalendar();
+    }
+
+    function nextMonth() {
+      date.setMonth(date.getMonth() + 1);
+      loadCalendar();
+    }
+
+    function toggleForm() {
+      eventForm.style.display = eventForm.style.display === 'block' ? 'none' : 'block';
+    }
+
+    function addEvent() {
+      const title = document.getElementById('eventTitle').value;
+      const eventDate = document.getElementById('eventDate').value;
+      const time = document.getElementById('eventTime').value;
+      const duration = document.getElementById('eventDuration').value;
+
+      if (title && eventDate && time) {
+        events.push({ title, date: eventDate, time, duration });
+        saveEvents();
+        loadCalendar();
+        eventForm.reset();
+        eventForm.style.display = 'none';
+      } else {
+        alert('Please fill in all required fields.');
+      }
+    }
+
+    loadCalendar();
+  </script>
+</body>
+</html>
